@@ -1,45 +1,56 @@
 'use strict';
 
+// const { v4: uuidv4 } = require('uuid');
 const express = require('express');
 
 function createServer() {
-  const app = express();
+  const app = express(); // ініціалізація серверу
 
-  app.use(express.json());
-
+  // масив users
   let users = [];
+
+  // масив expenses
   let expenses = [];
 
-  const nextUserId = () => {
+  // Функція для отримання наступного порядкового номера для users
+  const getNextUserId = () => {
     if (users.length === 0) {
       return 1;
-    }
+    } // якщо немає користувачів, починати з 1
 
-    return Math.max(...users.map((user) => user.id)) + 1;
+    // eslint-disable-next-line max-len
+    return Math.max(...users.map((user) => user.id)) + 1; // знаходимо максимальний id і додаємо 1
   };
 
-  const nextExpensesId = () => {
+  // Функція для отримання наступного порядкового номера для expenses
+  const getNextExpenseId = () => {
     if (expenses.length === 0) {
       return 1;
-    }
+    } // якщо немає витрат, починати з 1
 
-    return Math.max(...expenses.map((expense) => expense.id)) + 1;
+    // eslint-disable-next-line max-len
+    return Math.max(...expenses.map((expense) => expense.id)) + 1; // знаходимо максимальний id і додаємо 1
   };
 
+  // отримати всі users з масиву
   app.get('/users', (req, res) => {
-    res.json(users);
+    res.send(users);
   });
 
+  // отримати конкретного user з масиву
   app.get('/users/:id', (req, res) => {
     const { id } = req.params;
-    const chosenUser = users.find((user) => user.id === parseInt(id));
+    // eslint-disable-next-line max-len
+    const chosenUser = users.find((user) => user.id === parseInt(id)); // конвертуємо id у число
 
     if (!chosenUser) {
       return res.sendStatus(404);
     }
+
     res.send(chosenUser);
   });
 
+  // додати новий user до масиву
   app.post('/users', express.json(), (req, res) => {
     const { name } = req.body;
 
@@ -47,14 +58,20 @@ function createServer() {
       return res.sendStatus(400);
     }
 
-    const user = { id: nextUserId(), name };
+    const user = {
+      id: getNextUserId(), // Використання функції для отримання нового id
+      name,
+    };
 
     users.push(user);
+
     res.status(201).send(user);
   });
 
+  // видалити user з масиву за id
   app.delete('/users/:id', (req, res) => {
     const { id } = req.params;
+
     const newUsers = users.filter((user) => user.id !== parseInt(id));
 
     if (users.length === newUsers.length) {
@@ -62,9 +79,11 @@ function createServer() {
     }
 
     users = newUsers;
+
     res.sendStatus(204);
   });
 
+  // відредагувати user з масиву
   app.patch('/users/:id', express.json(), (req, res) => {
     const { id } = req.params;
     const { name } = req.body;
@@ -75,18 +94,16 @@ function createServer() {
       return res.sendStatus(400);
     }
 
-    if (!chosenUser) {
+    if (!chosenUser || !name) {
       return res.sendStatus(404);
     }
 
-    if (!name) {
-      return res.sendStatus(400);
-    }
-
     Object.assign(chosenUser, { name });
+
     res.send(chosenUser);
   });
 
+  // отримати всі expenses з масиву
   app.get('/expenses', (req, res) => {
     const { userId, from, to, categories } = req.query;
 
@@ -125,56 +142,40 @@ function createServer() {
     res.send(filteredExpenses);
   });
 
-  app.get('/expenses', (req, res) => {
-    const { userId, from, to, categories } = req.query;
+  // отримати конкретний expense з масиву
+  app.get('/expenses/:id', (req, res) => {
+    const { id } = req.params;
 
-    let filteredExpenses = expenses;
+    const chosenExpense = expenses.find(
+      (expense) => expense.id === parseInt(id),
+    );
 
-    if (userId) {
-      filteredExpenses = filteredExpenses.filter(
-        (expense) => expense.userId === parseInt(userId),
-      );
+    if (!chosenExpense) {
+      res.sendStatus(404);
+
+      return;
     }
 
-    const normalizedCategories =
-      Array.isArray(categories) || !categories ? categories : [categories];
-
-    if (normalizedCategories) {
-      filteredExpenses = filteredExpenses.filter((expense) =>
-        normalizedCategories.includes(expense.category));
-    }
-
-    if (from && to) {
-      const fromDate = new Date(from);
-      const toDate = new Date(to);
-
-      filteredExpenses = filteredExpenses.filter((expense) => {
-        const spentAt = new Date(expense.spentAt);
-
-        return spentAt >= fromDate && spentAt <= toDate;
-      });
-    }
-
-    res.json(filteredExpenses);
+    res.send(chosenExpense);
   });
 
-  app.post('/expenses', (req, res) => {
+  // додати новий expense до масиву
+  app.post('/expenses', express.json(), (req, res) => {
     const { userId, spentAt, title, amount, category, note } = req.body;
 
     if (!userId || !spentAt || !title || !amount || !category || !note) {
       return res.sendStatus(400);
     }
 
-    const userIdNumber = parseInt(userId);
-    const findUser = users.find((user) => user.id === userIdNumber);
+    const findUser = users.find((user) => user.id === userId);
 
     if (!findUser) {
       return res.sendStatus(400);
     }
 
     const newExpense = {
-      id: nextExpensesId(),
-      userId: userIdNumber,
+      id: getNextExpenseId(), // Використання функції для отримання нового id
+      userId,
       spentAt,
       title,
       amount,
@@ -183,11 +184,14 @@ function createServer() {
     };
 
     expenses.push(newExpense);
+
     res.status(201).send(newExpense);
   });
 
+  // видалити expense з масиву
   app.delete('/expenses/:id', (req, res) => {
     const { id } = req.params;
+
     const newExpenses = expenses.filter(
       (expense) => expense.id !== parseInt(id),
     );
@@ -195,12 +199,16 @@ function createServer() {
     if (expenses.length === newExpenses.length) {
       return res.sendStatus(404);
     }
+
     expenses = newExpenses;
+
     res.sendStatus(204);
   });
 
-  app.patch('/expenses/:id', (req, res) => {
+  // відредагувати expense з масиву
+  app.patch('/expenses/:id', express.json(), (req, res) => {
     const { id } = req.params;
+
     const chosenExpense = expenses.find(
       (expense) => expense.id === parseInt(id),
     );
@@ -209,13 +217,8 @@ function createServer() {
       return res.sendStatus(404);
     }
 
-    const { title, amount, category, note } = req.body;
-
-    if (!title || typeof title !== 'string' || !amount || !category || !note) {
-      return res.sendStatus(400);
-    }
-
     Object.assign(chosenExpense, req.body);
+
     res.status(200).send(chosenExpense);
   });
 
