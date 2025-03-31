@@ -125,28 +125,48 @@ function createServer() {
     res.send(filteredExpenses);
   });
 
-  app.get('/expenses/:id', (req, res) => {
-    const { id } = req.params;
-    const chosenExpense = expenses.find(
-      (expense) => expense.id === parseInt(id),
-    );
+  app.get('/expenses', (req, res) => {
+    const { userId, from, to, categories } = req.query;
 
-    if (!chosenExpense) {
-      res.sendStatus(404);
+    let filteredExpenses = expenses;
 
-      return;
+    if (userId) {
+      filteredExpenses = filteredExpenses.filter(
+        (expense) => expense.userId === parseInt(userId),
+      );
     }
-    res.send(chosenExpense);
+
+    const normalizedCategories =
+      Array.isArray(categories) || !categories ? categories : [categories];
+
+    if (normalizedCategories) {
+      filteredExpenses = filteredExpenses.filter((expense) =>
+        normalizedCategories.includes(expense.category));
+    }
+
+    if (from && to) {
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+
+      filteredExpenses = filteredExpenses.filter((expense) => {
+        const spentAt = new Date(expense.spentAt);
+
+        return spentAt >= fromDate && spentAt <= toDate;
+      });
+    }
+
+    res.json(filteredExpenses);
   });
 
-  app.post('/expenses', express.json(), (req, res) => {
+  app.post('/expenses', (req, res) => {
     const { userId, spentAt, title, amount, category, note } = req.body;
 
     if (!userId || !spentAt || !title || !amount || !category || !note) {
       return res.sendStatus(400);
     }
 
-    const findUser = users.find((user) => user.id === userId);
+    const userIdNumber = parseInt(userId);
+    const findUser = users.find((user) => user.id === userIdNumber);
 
     if (!findUser) {
       return res.sendStatus(400);
@@ -154,7 +174,7 @@ function createServer() {
 
     const newExpense = {
       id: nextExpensesId(),
-      userId,
+      userId: userIdNumber,
       spentAt,
       title,
       amount,
@@ -179,7 +199,7 @@ function createServer() {
     res.sendStatus(204);
   });
 
-  app.patch('/expenses/:id', express.json(), (req, res) => {
+  app.patch('/expenses/:id', (req, res) => {
     const { id } = req.params;
     const chosenExpense = expenses.find(
       (expense) => expense.id === parseInt(id),
@@ -188,6 +208,13 @@ function createServer() {
     if (!chosenExpense) {
       return res.sendStatus(404);
     }
+
+    const { title, amount, category, note } = req.body;
+
+    if (!title || typeof title !== 'string' || !amount || !category || !note) {
+      return res.sendStatus(400);
+    }
+
     Object.assign(chosenExpense, req.body);
     res.status(200).send(chosenExpense);
   });
